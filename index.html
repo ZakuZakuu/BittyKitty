@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Rhythm Game</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+        }
+        canvas {
+            background-color: #000;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- 音乐文件 -->
+    <audio id="backgroundMusic" src="./assets/Metronome.mp3"></audio>
+
+    <!-- 游戏画布 -->
+    <canvas id="gameCanvas" width="320" height="480"></canvas>
+
+    <script src="game.js"></script> <!-- 外部的JavaScript文件 -->
+</body>
+</html>
