@@ -6,9 +6,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 变量来存储当前乐谱信息
     let bpm = 120; // 默认BPM
-    let beatInterval = 500;
+    let beatInterval = 500; // 节拍周期(ms)
     let score = []; // 存储乐谱动作
     let currentBeat = 0;
+    let dodgeTime = 125;    // 闪避时间(ms)
+
+    let gameStarted = false;    // 阻塞进程，用于开始界面
+
+    let actionLocked = false;  // 动作锁定状态，防止连续运行时的重复触发
+    let beatLockTime = 20;  // 防止重复触发时间
 
     // 猫咪对象
     let cat = {
@@ -48,11 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return response.json();
             })
             .then(data => {
-                const selectedScore = data.scores.find(score => score.name === 'easy');
+                const selectedScore = data.scores.find(score => score.name === scoreName);
                 if (selectedScore) {
                     score = selectedScore.notes;
                     bpm = selectedScore.bpm;
                     beatInterval = (60 / bpm) * 10000; // 计算每个节拍的时间间隔
+                    beatLockTime = beatInterval / 25;
                     console.log(`Loaded easy score with BPM: ${bpm}`);
                 }
             })
@@ -61,6 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 猫咪动作函数
     function performCatAction(action) {
+        actionLocked = true;
+
         if (action === 1) {
             catAction = 'meow'; // 喵喵叫
             console.log("Cat is meowing!");
@@ -77,52 +86,73 @@ document.addEventListener('DOMContentLoaded', () => {
                 dodgeSuccess = false;
                 hitResult = "Ouch!";
             }
-
         } else {
             catAction = 'idle'; // 没有动作
             console.log("Cat is idle");
         }
 
-
         drawGame(); // 重新绘制游戏
     }
 
-    // 手的闪避动作
+    // 点击处理函数，手的闪避动作
     canvas.addEventListener('touchstart', function (e) {
-        if (!hand.isDodging) {
-            hand.isDodging = true;  // 标记进入闪避状态
-            hitResult = "";
+        if (gameStarted) {
+            if (!hand.isDodging) {
+                hand.isDodging = true;  // 标记进入闪避状态
+                // hitResult = "";
 
-            // 手向下移动
-            hand.y = hand.dodgeY;
-            drawGame();
+                // 手向下移动
+                hand.y = hand.dodgeY;
+                drawGame();
 
-            // 设定延时，0.2 秒后手归位
-            setTimeout(() => {
-                hand.y = hand.originalY; // 恢复原位
-                drawGame(); // 重绘游戏
-                hand.isDodging = false; // 恢复可闪避状态
-            }, 300);  // 200毫秒后归位
+                // 设定延时，0.2 秒后手归位
+                setTimeout(() => {
+                    hand.y = hand.originalY; // 恢复原位
+                    drawGame(); // 重绘游戏
+                    hand.isDodging = false; // 恢复可闪避状态
+                }, dodgeTime);  // 200毫秒后归位
+            }
         }
     });
 
     // 游戏启动函数，开始根据乐谱同步猫咪的动作
     function startGame() {
-        audio.play(); // 播放音乐
-        currentBeat = 0; // 重置当前节拍
+        // audio.play(); // 播放音乐
+        currentBeat = 1; // 重置当前节拍
 
         const intervalId = setInterval(() => {
 
-            // 执行动作
-            performCatAction(score[currentBeat]);
-            
-            if (currentBeat < score.length - 1){
+            if (actionLocked) {
+                return;
+            }
+            else {
+                // 执行动作
+                performCatAction(score[currentBeat]);
+            }
+
+            // 延迟解锁动作，确保动作在一段时间后可以切换
+            setTimeout(() => {
+                actionLocked = false;  // 解锁状态，允许下一个动作
+            }, beatLockTime);  // 50ms 锁定时间，防止重复触发
+
+
+            console.log("Current beat" + String(currentBeat));
+
+            if (currentBeat < score.length - 1) {
                 currentBeat++;
             } else {
                 currentBeat = 0;
             }
 
         }, beatInterval);
+    }
+
+    // 显示开始界面
+    function drawStartScreen() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = "30px Arial";
+        ctx.fillStyle = "#fff";
+        ctx.fillText("Tap to Start", canvas.width / 2 - 90, canvas.height / 2);
     }
 
     // 监听音乐的播放事件
@@ -153,16 +183,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // 绘制猫咪喵喵叫的动作
             ctx.fillStyle = cat.color;
             ctx.fillRect(cat.x, cat.y, cat.width, cat.height); // 白色矩形代表猫咪
-            ctx.fillText("Meow!", cat.x + 18, cat.y - 30);
+            ctx.fillText("Meow!", cat.x + 18, cat.y - 20);
         } else if (catAction === 'bite') {
             // 绘制猫咪咬手的动作
             ctx.fillStyle = cat.color;
             ctx.fillRect(cat.x, cat.y, cat.width, cat.height); // 白色矩形代表猫咪
-            ctx.fillText("Bite!", cat.x + 26, cat.y - 30)
-        } else {
+            ctx.fillText("Bite!", cat.x + 26, cat.y - 20)
+        } else if (catAction === 'idle') {
             // 绘制猫咪空闲状态
             ctx.fillStyle = cat.color;
             ctx.fillRect(cat.x, cat.y, cat.width, cat.height); // 白色矩形代表猫咪
+            ctx.fillText("Resting...", cat.x + 12, cat.y - 20)
         }
 
         // 绘制玩家的手
@@ -174,10 +205,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    startGame();
+    // while (!gameStarted){};
 
-    drawGame();
+    // 首次点击开始游戏
+    canvas.addEventListener('touchstart', function startFirstGame() {
+        if (!gameStarted) {
+            // 只有用户第一次触摸时，才播放音乐并启动游戏
+            audio.play().then(() => {
+                canvas.removeEventListener('touchstart', startFirstGame); // 移除开始游戏的触摸监听
 
-    // 在游戏开始时，加载指定的乐谱
-    loadScore('easy');  // 你可以根据用户的选择加载不同的乐谱
+                gameStarted = true;
+                console.log("Music started successfully");
+                loadScore('hard');  // 你可以根据用户的选择加载不同的乐谱
+
+                drawGame();
+
+                startGame();
+
+                // 在游戏开始时，加载指定的乐谱
+
+            }).catch(error => {
+                console.error("Music play failed:", error);  // 捕捉播放失败的错误
+            });
+
+        }
+
+
+    });
+
+    drawStartScreen();
+
+    // startGame();
+
+    // drawGame();
+
+    // // 在游戏开始时，加载指定的乐谱
+    // loadScore('easy');  // 你可以根据用户的选择加载不同的乐谱
 });
